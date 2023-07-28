@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
+using TicketManagementSystem.Models;
 using TicketManagementSystem.Models.dto;
 using TicketManagementSystem.Repository;
 
@@ -10,11 +11,13 @@ namespace TicketManagementSystem.Controllers
     public class OrderController: ControllerBase
     {
         private readonly IOrderRepository _orderRepository;
+        private readonly ITicketCategoryRepository _ticketCategoryRepository;
         private readonly IMapper _mapper;
 
-        public OrderController(IOrderRepository orderRepository, IMapper mapper)
+        public OrderController(IOrderRepository orderRepository, ITicketCategoryRepository ticketCategory,  IMapper mapper)
         {
             _orderRepository = orderRepository;
+            _ticketCategoryRepository = ticketCategory;
             _mapper = mapper;
         }
 
@@ -47,14 +50,28 @@ namespace TicketManagementSystem.Controllers
         public async Task<ActionResult<OrderPatchDto>> Patch(OrderPatchDto orderPatch)
         {
             var orderEntity = await _orderRepository.GetById(orderPatch.OrderId);
+            int numberOfTickets = (int)orderEntity.NumberOfTickets;
+            int totalPrice = (int)orderEntity.TotalPrice;
+            var ticketCategory = await _ticketCategoryRepository.GetById((int)orderEntity.TicketCategoryId);
 
             if (orderEntity == null)
             {
                 return NotFound();
             }
 
-            _mapper.Map(orderPatch, orderEntity);
+             _mapper.Map(orderPatch, orderEntity);
             _orderRepository.Update(orderEntity);
+
+            if (numberOfTickets < orderPatch.NumberOfTickets) {
+                orderEntity.TotalPrice = orderEntity.NumberOfTickets * ticketCategory.Price;
+            }
+            else
+            {
+                orderEntity.TotalPrice = totalPrice - (numberOfTickets - orderPatch.NumberOfTickets) * ticketCategory.Price;
+            }
+
+            _orderRepository.Update(orderEntity);
+
             return Ok(orderEntity);
         }
 
